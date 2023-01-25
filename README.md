@@ -8,10 +8,10 @@ Oxford around the turn of the millennium. The course covered a host
 of topics and, in particular, related abstract machines, operational
 semantics, type systems, and various styles of implementation.
 
-I was, I'm afraid, a little self-indulgent in the design of the
-notation. The language can more properly be seen as yet another
-dialect of Landin's ISWIM. Here are some declarations from its lists
-library to give a flavour of it
+I'm afraid I was a little self-indulgent in the design of the
+notation, though it can still be recognised as being in the
+tradition of Landin's ISWIM. Here are some declarations from its lists
+library that will, perhaps, give you a flavour: 
 
          --- type declarations
          
@@ -52,6 +52,12 @@ library to give a flavour of it
                          h :: lines t
              ⟩;
 
+         --- a fixpoint function
+         μ f = f(μ f);
+
+Another point of interest that made the language useful to me during
+a course on cryptology is that numbers are represented as (efficiently
+implemented) arbitrary precision rationals.
 
 ### Actions and the I/O Monad
 

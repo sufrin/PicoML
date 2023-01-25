@@ -264,6 +264,7 @@
 
 (*   \subsubsection*{Character classes} *)
 
+let regexp    greek      = [0x03b1-0x03c9]
 let regexp    digit      =  ['0'-'9']
 let regexp    hexit      =  ['0'-'9' 'a'-'f']
 let regexp    num        =  digit+ ('.' digit+)? (['e' 'E'] '-'? digit+ )? 
@@ -271,7 +272,7 @@ let regexp    lcLetter   =  ['a'-'z']
 let regexp    ucLetter   =  ['A' - 'Z']
 let regexp    anyLetter  =  ucLetter | lcLetter
 let regexp    alphaNum   =  anyLetter  | digit | '_' | '\''
-let regexp    id         =  lcLetter alphaNum*
+let regexp    id         =  lcLetter alphaNum* | greek
 let regexp    conId      =  ucLetter alphaNum*
 let regexp    binop      =  [':' '+' '-' '='  '#' '&' '*' '/' '~'  '\\' '!' '@' '<' '>'  '?' '|' '%' '^' '$'  '.' ]
 let regexp    whitespace =  [' ' '\t']
