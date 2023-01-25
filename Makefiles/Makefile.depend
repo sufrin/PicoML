@@ -1,0 +1,19 @@
+parse.cmi: syntax.cmo 
+env.cmo: type.cmo utils.cmo 
+env.cmx: type.cmx utils.cmx 
+infer.cmo: env.cmo pointer.cmo syntax.cmo trace.cmo type.cmo utils.cmo 
+infer.cmx: env.cmx pointer.cmx syntax.cmx trace.cmx type.cmx utils.cmx 
+lex.cmo: parse.cmi 
+lex.cmx: parse.cmx 
+main.cmo: top.cmo 
+main.cmx: top.cmx 
+parse.cmo: syntax.cmo type.cmo parse.cmi 
+parse.cmx: syntax.cmx type.cmx parse.cmi 
+syntax.cmo: type.cmo 
+syntax.cmx: type.cmx 
+top.cmo: env.cmo infer.cmo lex.cmo parse.cmi syntax.cmo trace.cmo type.cmo 
+top.cmx: env.cmx infer.cmx lex.cmx parse.cmx syntax.cmx trace.cmx type.cmx 
+trace.cmo: syntax.cmo type.cmo 
+trace.cmx: syntax.cmx type.cmx 
+type.cmo: pointer.cmo utils.cmo 
+type.cmx: pointer.cmx utils.cmx 

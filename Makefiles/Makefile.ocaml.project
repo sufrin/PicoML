@@ -1,0 +1,113 @@
+#
+#       Generic project file for OCAML
+#       $Id: Makefile.ocaml.project,v 1.4 2001/02/26 12:58:44 sufrin Exp $
+#       Include this in an environment in which the following variables are set
+#
+#         SOURCES   = sources of all ml units (including mly/mll files)
+#         GENERATED = files generated from mly/mll files
+#         LISTING   = things to list as well as the sources for list? targets
+#
+#         NAME      = name of the target program
+#         VERSION   = version of the target program
+#
+include         $(TOPLEVEL)/Makefile.ocaml.rules
+#
+#
+#
+
+#               Default target is 'all'
+all::           ALWAYS DEPEND
+all.opt::       ALWAYS DEPEND
+list::          LISTING.pdf
+
+#               realclean includes clean'ing
+realclean::     clean
+clean::;        rm -f $(GENERATED)
+
+#               Files made in this directory from source files. 
+CMO =           $(patsubst %.ml,%.cmo,$(patsubst %.mll,%.ml,version.ml $(SOURCES:.mly=.ml)))
+CMX =           $(CMO:.cmo=.cmx)
+OBJ =           $(CMO:.cmo=.o)
+CMI =           $(CMO:.cmo=.cmi)
+CMXA =          $(CMA:.cma=.cmxa)
+
+#               Various other things to do
+clean::;        rm -f $(CMO) $(CMX) $(OBJ) $(CMI)
+LISTING.pdf:    $(SOURCES) $(LISTING) Makefile; listing  $(SOURCES) $(LISTING) Makefile
+tarball:        clean; tar cvzf $(NAME)-$(VERSION).tgz Makefile* $(SOURCES) $(TESTS)
+webtex:         $(NAME).tex $(SOURCES) ; ocamlweb --no-preamble $(SOURCES) -o $(NAME).webtex; latex $(NAME)
+#
+#               Compiler flags used in Makefile.ocaml for compiling
+#
+CFLAGS =        $(INCLUDE) $(Cflags)
+OFLAGS =        $(INCLUDE) $(Oflags)
+
+# -----------------------------------------------------------------------------
+# Targets
+# -----------------------------------------------------------------------------
+
+#               all.opt generates optimised toplevel
+all::           $(NAME)
+opt::           $(NAME).opt
+all.opt::       all opt
+$(NAME):        $(CMO) ; $(CAMLC)   $(CFLAGS) -o $@ $(CMA)  $(CMO) $(LIBS)
+$(NAME).opt:    $(CMX) ; $(CAMLOPT) $(OFLAGS) -o $@ $(CMXA) $(CMX) $(LIBS)
+
+# 
+#               Make all .cmo files (for interactive use in the toplevel)
+#
+cmo:            $(CMO)
+realclean::;    rm -f $(NAME) $(NAME).opt
+
+####
+####            Generate source file with version and name information
+####
+version.ml:     $(SOURCES);\
+                echo "let version=\"$(NAME)-$(VERSION) ($(shell date -u +'%R %A %b %d %Y'))\"" > $@
+clean::;        rm -f version.ml
+# 
+# -----------------------------------------------------------------------------
+# phony targets
+# -----------------------------------------------------------------------------
+
+# all code created by generators must be there before dependencies
+# are calculated!
+
+depend:         DEPEND ALWAYS
+
+DEPEND:         $(SOURCES) $(GENERATED);\
+                $(CAMLDEP) $(INCLUDE) $(SOURCES) $(GENERATED) > DEPEND
+
+tags:           ALWAYS;\
+                mltags *.mli *.ml 
+
+clean::;        rm -f tags
+
+#
+# dummy target
+#
+
+ALWAYS::        ; $(ALWAYS)
+
+# -----------------------------------------------------------------------------
+# dependencies - include manually if your make does not support include
+# -----------------------------------------------------------------------------
+
+-include DEPEND
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

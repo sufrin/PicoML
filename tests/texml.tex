@@ -1,0 +1,66 @@
+\documentclass[11pt,a4paper]{paper}
+\usepackage{verbatimstyle,color,textract,fancyvrb-ex}
+\RequirePackage[mathletters]{ucs}
+\RequirePackage[utf8x]{inputenc}
+
+\parindent=0pt
+\parskip=\medskipamount
+
+
+\IfFileExists{DejaVuSansMono.sty}
+{\RequirePackage{DejaVuSansMono}}
+{\typeout{Install DejaVu Fonts, please}}
+
+\DefineVerbatimEnvironment{ml}{Verbatim}{fontsize=\scriptsize,frame=single,formatcom=\color{blue},numbers=left}
+
+%%%
+
+\begin{document}
+This is an example of a picoml program embedded in a latex file. It uses the standard
+picoml library, including the IO-monad-like type ACT.
+\begin{ml}
+   import "./lib/lib";
+   
+   let putStrLn: [Char] -> ACT ();
+       putStrLn s = putStr s >> putStr "\n";
+       
+       promptLine: [Char] -> ACT [Char];
+       promptLine prompt = putStr prompt >> getLine
+   end
+       
+   let greeting   = "Hello. What's your name? ";
+       prompt     = promptLine greeting;
+       rec interact name = 
+           prompt >>> 
+           λ( "" -> return name
+            | r  -> putStr "Hello " >> putStrLn r >> interact r
+            ) 
+   end
+   
+   let main = interact "I still don't know you"
+       >>>       
+       λ( name -> putStr "Goodbye, " >> putStr name >> putStrLn "." )
+       >?> 
+       λ( _ -> putStrLn "\nI can see you're not going to tell me." 
+          >> 
+          return () 
+         );;
+\end{ml}
+
+That was an example of a picoml program embedded in a latex file. It uses the standard
+picoml library, including the IO-monad-like type ACT. Here is some stuff in verbatim* 
+
+\begin{verbatim*}
+some stuff
+\end{verbatim*}
+
+
+\end{document}
+
+
+
+
+
+
+
+

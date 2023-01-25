@@ -1,0 +1,38 @@
+builtin.cmo : utils.cmi type.cmo semantics.cmo number.cmo mapping.cmo
+builtin.cmx : utils.cmx type.cmx semantics.cmx number.cmx mapping.cmx
+datatype.cmo : type.cmo syntax.cmo semantics.cmo mapping.cmo builtin.cmo
+datatype.cmx : type.cmx syntax.cmx semantics.cmx mapping.cmx builtin.cmx
+env.cmo : utils.cmi type.cmo syntax.cmo pointer.cmo mapping.cmo
+env.cmx : utils.cmx type.cmx syntax.cmx pointer.cmx mapping.cmx
+infer.cmo : utils.cmi type.cmo trace.cmo syntax.cmo pointer.cmo mapping.cmo \
+    env.cmo
+infer.cmx : utils.cmx type.cmx trace.cmx syntax.cmx pointer.cmx mapping.cmx \
+    env.cmx
+lex.cmo : syntax.cmo parse.cmi
+lex.cmx : syntax.cmx parse.cmx
+main.cmo : utils.cmi trace.cmo top.cmo syntax.cmo parse.cmi lex.cmo
+main.cmx : utils.cmx trace.cmx top.cmx syntax.cmx parse.cmx lex.cmx
+mapping.cmo : utils.cmi
+mapping.cmx : utils.cmx
+number.cmo :
+number.cmx :
+parse.cmo : parse.cmi
+parse.cmx : parse.cmi
+parse.cmi : syntax.cmo
+pointer.cmo :
+pointer.cmx :
+semantics.cmo : utils.cmi syntax.cmo number.cmo mapping.cmo
+semantics.cmx : utils.cmx syntax.cmx number.cmx mapping.cmx
+syntax.cmo : type.cmo number.cmo
+syntax.cmx : type.cmx number.cmx
+top.cmo : utils.cmi type.cmo trace.cmo syntax.cmo semantics.cmo mapping.cmo \
+    infer.cmo env.cmo datatype.cmo builtin.cmo action.cmo
+top.cmx : utils.cmx type.cmx trace.cmx syntax.cmx semantics.cmx mapping.cmx \
+    infer.cmx env.cmx datatype.cmx builtin.cmx action.cmx
+trace.cmo :
+trace.cmx :
+type.cmo : utils.cmi trace.cmo pointer.cmo
+type.cmx : utils.cmx trace.cmx pointer.cmx
+utils.cmo : utils.cmi
+utils.cmx : utils.cmi
+utils.cmi :

@@ -1,0 +1,19 @@
+PicoML Roadmap: October 30th, 2020
+
+Simplified type classes?
+
+--
+
+Constructors represented by indexes (as well as their names)
+
+Environments represented as layered hashtables
+
+Continuation-based interpretation throughout
+
+--
+
+
+
+
+
+

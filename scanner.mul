@@ -1,0 +1,454 @@
+
+        (*i $Id: scanner.mul 194 2021-03-14 16:56:31Z sufrin $  i*)
+        
+    
+(*      
+        \subsubsection*{Position-tracking}
+        This section keeps track of the current position in
+        source file  by noting the position (in  the lexbuffer)
+        of each token as it is read and the position of each
+        newline as it is read.
+        
+        The prompt is printed whenever a newline has been read.
+*)
+        
+    let currentpath = ref ""
+    let prompt      = ref ""
+    let lineNumber  = ref 1
+    let lineStart   = ref 0
+    
+    let relativePath path =
+    let open Filename
+    in
+        if path="" then path else
+        if not @@ is_implicit path then path else
+        concat (dirname (!currentpath)) path
+
+    
+    let mkPos path lnum bol col : Lexing.position =
+    { pos_fname  = path;
+      pos_lnum   = lnum;
+      pos_bol    = bol;
+      pos_cnum   = col;      
+    }
+    
+    
+    let showprompt() = if !prompt<>"" then Format.printf "%n %s@?" (!lineNumber) (!prompt)
+    
+    (*  
+        This function tracks the linenumber and the position of the current linestart.
+        It MUST be invoked immediately on seeing a \n -- whatever symbol it may
+        (or may not) appear in. 
+    *)
+    let newline lexbuf  = 
+        incr lineNumber;
+        showprompt();
+        lineStart := Ulexing.lexeme_end lexbuf    
+        
+    (* Invoked when opening a new file *)
+    
+    let fileState = ref []
+    
+    let startFile path newprompt = 
+        fileState := (!currentpath, !prompt)::(!fileState);
+        currentpath := path;
+        lineNumber  := 1;
+        lineStart   := 0;
+        prompt      := newprompt;
+        showprompt()
+        
+    (* Invoked when closing a file *)
+    
+    let endFile lexbuf = 
+    match !fileState with
+    | [] -> ()
+    | (path, oldprompt)::rest -> 
+         currentpath := path;
+         prompt      := oldprompt;
+         fileState   := rest
+                       
+    let inlatex() = Filename.check_suffix (!currentpath) "tex" 
+
+(* 
+        \subsubsection*{Map names to symbols} 
+
+*)
+
+    open Parse
+    open Utf8string
+    
+    let to_string code = Utf8string.to_utf8string (Uchar.of_int code)
+
+(*****************************  Symbol Table *************************) 
+   
+    let idMap: (string, token)       Hashtbl.t  = Hashtbl.create 150 
+    
+    let to_string: unicodechar -> utf8string = fun u ->
+    let b = Buffer.create 4
+    in  Buffer.add_utf_8_uchar b u;
+        Buffer.contents b
+        
+    let to_unicode_string code = to_string (Uchar.of_int code)
+    
+    let notation mkTok codes = 
+        let addCode code =
+            let str = to_unicode_string code
+            in Hashtbl.add idMap str (mkTok str)
+        in List.iter addCode codes
+    
+    let _ = List.iter (fun (s, t) -> Hashtbl.add idMap s t)
+       [       "let"      , LET
+       ;       "in"       , IN
+       ;       "end"      , END
+       ;       "def"      , DEF
+       ;       "with"     , WITH
+       ;       "do"       , DO
+       ;       "where"    , WHERE
+       ;       "and"      , AND
+       ;       "rec"      , REC
+       ;       "if"       , IF
+       ;       "then"     , THEN
+       ;       "else"     , ELSE
+       ;       "data"     , DATA      
+       ;       "type"     , TYPE
+       ;       "import"   , IMPORT
+       ;       "notation" , NOTATION
+       ];
+       notation (fun s -> ID s) 
+                [ 0x2205 (* ∅ *)
+                ; 0x2211 (* ∑ *)
+                ; 0x220f (* ∏ *)
+                ; 0x2210 (* ∐ *)
+                ; 0x2200 (* ∀ *)
+                ; 0x2203 (* ∃ *)
+                ; 0x21af (* ↯ *)
+                ]
+
+(* Syntactic roles of identifier strings are looked up by the scanner using mkXXXX 
+   All identifiers that appear are mapped by the idMap to their default or declared role
+*)
+    
+    let ret id sym = (Hashtbl.add idMap id sym; sym)
+    
+    let mkID      id = try Hashtbl.find idMap id with Not_found -> ret id @@ ID id
+    let mkCONID   id = try Hashtbl.find idMap id with Not_found -> ret id @@ CONID id
+    let mkMath    id = try Hashtbl.find idMap id with Not_found -> ret id @@ BINL9 id
+    let mkMathCon id = try Hashtbl.find idMap id with Not_found -> ret id @@ CONL9 id
+    
+(*  isId str is used to determine whether an identifier string used in the
+    program is (by default) or has been declared to be an ID or a CONID. If not
+    then it's an infix operator of some kind.
+    
+    These functions are used during the printing of expressions and values.
+*) 
+    
+    let isId str = 
+        try ( match Hashtbl.find idMap str with
+            | ID    _ -> true
+            | CONID _ -> true
+            | _       -> false
+            )
+        with Not_found -> false
+        
+    let isOp str = not(isId str)
+
+       
+    let leftOpSymbol = Array.of_list
+    [ (fun x -> BINL0(x))
+    ; (fun x -> BINL1(x))
+    ; (fun x -> BINL2(x))
+    ; (fun x -> BINL3(x))
+    ; (fun x -> BINL4(x))
+    ; (fun x -> BINL5(x))
+    ; (fun x -> BINL6(x))
+    ; (fun x -> BINL7(x))
+    ; (fun x -> BINL8(x))
+    ; (fun x -> BINL9(x))
+    ]
+    
+    let rightOpSymbol = Array.of_list
+    [ (fun x -> BINR0(x))
+    ; (fun x -> BINR1(x))
+    ; (fun x -> BINR2(x))
+    ; (fun x -> BINR3(x))
+    ; (fun x -> BINR4(x))
+    ; (fun x -> BINR5(x))
+    ; (fun x -> BINR6(x))
+    ; (fun x -> BINR7(x))
+    ; (fun x -> BINR8(x))
+    ; (fun x -> BINR9(x))
+    ]
+ 
+    let leftConSymbol = Array.of_list
+    [ (fun x -> CONL0(x))
+    ; (fun x -> CONL1(x))
+    ; (fun x -> CONL2(x))
+    ; (fun x -> CONL3(x))
+    ; (fun x -> CONL4(x))
+    ; (fun x -> CONL5(x))
+    ; (fun x -> CONL6(x))
+    ; (fun x -> CONL7(x))
+    ; (fun x -> CONL8(x))
+    ; (fun x -> CONL9(x))
+    ]
+    
+    let rightConSymbol = Array.of_list
+    [ (fun x -> CONR0(x))
+    ; (fun x -> CONR1(x))
+    ; (fun x -> CONR2(x))
+    ; (fun x -> CONR3(x))
+    ; (fun x -> CONR4(x))
+    ; (fun x -> CONR5(x))
+    ; (fun x -> CONR6(x))
+    ; (fun x -> CONR7(x))
+    ; (fun x -> CONR8(x))
+    ; (fun x -> CONR9(x))
+    ]
+
+   (* Experimental notation declarations *)
+        
+ 
+    let declareNotations declns =
+        let declareFixity (associativity, priority, symbols) =
+            let priority = int_of_string priority in
+            if (0<=priority && priority<=9) then
+               let mkTok = match associativity with
+                  "left"      -> leftOpSymbol.(priority)
+                | "right"     -> rightOpSymbol.(priority)
+                | "leftdata"  -> leftConSymbol.(priority)
+                | "rightdata" -> rightConSymbol.(priority)
+                | "id"        -> (fun x -> ID x)
+                | "constant"  -> (fun x -> CONID x)
+                | _           -> failwith ("fixity misdeclared as: "^associativity^", but should be one of: left, right, leftdata, rightdata, id, con) ")
+               in 
+               let addSymbol str = Hashtbl.add idMap str (mkTok str)
+               in List.iter addSymbol symbols           
+            else failwith ("priority out of bounds: " ^ string_of_int priority)
+    in List.iter declareFixity declns
+    
+    
+    let mkOP =
+    function ":"   -> COLON
+    |        "@"   -> ALL
+    |        "///" -> INSIDE
+    |        "="   -> EQ "="
+    |        "|"   -> ALT
+    |        "->"  -> TO
+    |        "."   -> DOT
+    |        "$"   -> AT
+    |        "::"  -> CONS "::"       
+    |        s   ->  mkMath s
+
+(******************************************************)                          
+    
+    
+(* \subsubsection*{Make strings from string fragments} *)
+
+    open String 
+    open Char
+    
+    let int3 s = let d i = code(s.[i])-code('0') in
+                     String.make 1 (chr (d 1 * 100 + d 2 * 10 + d 3))
+    
+    let str        = ref ""
+    let addstr  s  = str := !str ^ s
+            
+    let mkString s = STRING s
+
+    let mkChar   s = let open Utf8string in
+                         if length s=1 then 
+                            CHAR (to_unicodechar s)
+                         else 
+                            STRING s 
+                            
+
+(*   \subsubsection*{Character classes} *)
+
+let regexp    digit      =  ['0'-'9']
+let regexp    hexit      =  ['0'-'9' 'a'-'f']
+let regexp    num        =  digit+ ('.' digit+)? (['e' 'E'] '-'? digit+ )? 
+let regexp    lcLetter   =  ['a'-'z']
+let regexp    ucLetter   =  ['A' - 'Z']
+let regexp    anyLetter  =  ucLetter | lcLetter
+let regexp    alphaNum   =  anyLetter  | digit | '_' | '\''
+let regexp    id         =  lcLetter alphaNum*
+let regexp    conId      =  ucLetter alphaNum*
+let regexp    binop      =  [':' '+' '-' '='  '#' '&' '*' '/' '~'  '\\' '!' '@' '<' '>'  '?' '|' '%' '^' '$'  '.' ]
+let regexp    whitespace =  [' ' '\t']
+let regexp    code       =  ['0'-'1'] digit digit
+let regexp    underscore = '_' *
+let regexp    mathop     = [0x2200-0x22ff 0x2190-0x21ff 0x2a00-0x2aff 0x2300-0x23ff]
+
+
+(*      
+        \subsubsection*{Tokenizing rules} 
+
+*)
+
+
+let rec token = lexer
+|       whitespace+              -> token lexbuf
+|       '\n'                     -> newline lexbuf; token lexbuf
+|       "---"                    -> linecomment lexbuf; token lexbuf
+|       "/*"                     -> comment lexbuf; token lexbuf
+|       num                      -> NUM(Ulexing.utf8_lexeme lexbuf)
+|       '('                      -> BRA
+|       ')'                      -> KET
+|       ','                      -> COMMA
+|       "{"                      -> CURLYBRA
+|       0x27e8                   -> FUN  (* ⟨ *) 
+|       0x27e9                   -> NUF  (* ⟩ *) 
+|       0x03bb                   -> LAM                               (* λ *)
+|       '\\'                     -> LAM
+|       '}'                      -> CURLYKET
+|       '['                      -> SQBRA
+|       ']'                      -> SQKET
+|       ";"                      -> SEMI
+|       ";;"                     -> END
+|       0x2afb                   -> INSIDE                            (* ⫻ *)
+|       0x2219                   -> DOT                               (* ∙ *)
+|       0x2192                   -> TO                                (* → *)
+|       0x2982                   -> CONS "::"
+|       0x00ac                   -> ID("not")                         (* ¬ *)
+|       0x00F7                   -> mkMath(Ulexing.utf8_lexeme lexbuf) (* ÷ *)
+|       0x00D7                   -> mkMath(Ulexing.utf8_lexeme lexbuf) (* × *)
+|       0x2308                   -> LEFT("ceil", Ulexing.utf8_lexeme lexbuf,   to_unicode_string 0x2309)
+|       0x2309                   -> RIGHT("ceil", to_unicode_string 0x2308,  Ulexing.utf8_lexeme lexbuf)
+|       0x230A                   -> LEFT("floor", Ulexing.utf8_lexeme lexbuf,   to_unicode_string 0x230B)
+|       0x230B                   -> RIGHT("floor", to_unicode_string 0x230A,  Ulexing.utf8_lexeme lexbuf)
+|       mathop                   -> mkMath(Ulexing.utf8_lexeme lexbuf)
+|       binop binop*             -> mkOP(Ulexing.utf8_lexeme lexbuf)
+|       underscore id            -> mkID(Ulexing.utf8_lexeme lexbuf)
+|       underscore conId         -> mkCONID(Ulexing.utf8_lexeme lexbuf)
+|       '`' id '`'               -> mkMath((Ulexing.utf8_lexeme lexbuf)) (* `foo` *)
+|       '`' conId '`'            -> mkMathCon((Ulexing.utf8_lexeme lexbuf)) (* `Foo` *)
+|       '_'                      -> HOLE
+|       '"'                      -> str:=""; stringbody lexbuf
+|       "'"                      -> str:=""; charbody lexbuf
+|       "\\end{ml}"              ->
+        (
+         if inlatex() then skiplatex lexbuf 
+         else failwith "\\end{ml} token in non-latex file"
+        )
+|       eof                      -> EOF
+|       _                        -> token lexbuf
+
+and skiplatex = lexer
+    '\n'                         -> newline lexbuf; skiplatex lexbuf
+|   "\\begin{ml}"                -> token lexbuf
+|       eof                      -> EOF
+|   _                            -> skiplatex lexbuf
+
+and stringbody = lexer
+|   '\n'                         -> failwith "End of line in string"
+|   "\\\n" whitespace* '\\'      -> newline lexbuf; stringbody lexbuf
+|   '\\'   code                  -> addstr (int3(Ulexing.utf8_lexeme lexbuf)); stringbody lexbuf
+|   "\\\""                       -> addstr "\""; stringbody lexbuf
+|   "\\n"                        -> addstr "\n"; stringbody lexbuf
+|   "\\\\"                       -> addstr "\\"; stringbody lexbuf
+|   '\\' _                       -> addstr (Ulexing.utf8_lexeme lexbuf); stringbody lexbuf
+|   '"'                          -> mkString(!str)
+|   eof                          -> failwith "End of file in string"
+|   _                            -> addstr(Ulexing.utf8_lexeme lexbuf); stringbody lexbuf
+
+and charbody = lexer
+|   '\n'         -> failwith "End of line in char"
+|   '\\' code    -> addstr (int3(Ulexing.utf8_lexeme lexbuf)); charbody lexbuf
+|   "\\\""       -> addstr "\""; charbody lexbuf
+|   "\\n"        -> addstr "\n"; charbody lexbuf
+|   "\\\\"       -> addstr "\\"; charbody lexbuf
+|   '\\' _       -> addstr (Ulexing.utf8_lexeme lexbuf); charbody lexbuf
+|   '\''         -> mkChar(!str)
+|   eof          -> failwith "End of file in character"
+|   _            -> addstr(Ulexing.utf8_lexeme lexbuf); charbody lexbuf
+
+(*   
+        Comments must be properly nested  
+*)
+
+and comment = lexer
+        "*/"                     -> ()
+|       '\n'                     -> newline lexbuf; comment lexbuf
+|       "/*"                     -> comment lexbuf; comment lexbuf
+|       _                        -> comment lexbuf
+|       eof                      -> failwith "End of file inside a comment" 
+
+and linecomment = lexer
+|       '\n'                     -> newline lexbuf; ()
+|       _                        -> linecomment lexbuf
+|       eof                      -> failwith "End of file inside a --- comment" 
+
+;;
+
+(*
+\newpage
+*)
+
+
+let getLocation lexbuf = (!lineNumber, Ulexing.lexeme_start lexbuf - !lineStart, !currentpath)
+
+(*      
+        This function fetches the next token and its start and end positions.
+        The sequencing of the declarations of its local variables is delicate
+        if it's to report positions accurately.
+*)
+let fetchToken token lexbuf =     
+    let tok = token lexbuf in 
+    let startPos = mkPos !currentpath !lineNumber !lineStart (Ulexing.lexeme_start lexbuf) in
+    let endPos   = mkPos !currentpath !lineNumber !lineStart (Ulexing.lexeme_end lexbuf) 
+    in  (tok, startPos, endPos)     
+    
+
+
+(* 
+        This function, which is called from the parser,
+        yields a lexer to be used for the file whose name is
+        current. The TeX tokenizer reads its first symbol in
+        skiplatex mode, whereas the non-tex tokenizer just
+        reads a picoML symbol.
+*)
+
+let getLexer lexbuf path prompt =
+    startFile path prompt;
+    Syntax.clearPath(); (* re-enable path-suppression in position printing *)
+    if inlatex() then
+       let intex = ref true
+       in  fun () -> 
+           if !intex then 
+              (intex:=false;  fetchToken skiplatex lexbuf)
+           else fetchToken token lexbuf
+     
+    else 
+    fun () -> fetchToken token lexbuf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
